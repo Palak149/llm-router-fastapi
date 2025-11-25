@@ -1,0 +1,173 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>LLM Router Chat</title>
+
+    <style>
+        /* ===============================
+           BASIC PAGE STYLING
+           Dark theme with centered layout
+        ================================ */
+        body {
+            font-family: Arial, sans-serif;
+            background: #1e1e2f;    /* Dark background */
+            color: #ffffff;         /* White text */
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            padding: 20px;
+        }
+
+        h1 {
+            color: #ffcc00;         /* Yellow title */
+        }
+
+        /* ===============================
+           CHAT DISPLAY BOX
+           Holds all messages
+        ================================ */
+        #chatBox {
+            width: 100%;
+            max-width: 600px;       /* Limit width */
+            height: 400px;          /* Scrollable area */
+            border: 1px solid #555;
+            background: #2e2e3e;
+            padding: 10px;
+            overflow-y: auto;
+            margin-bottom: 10px;
+        }
+
+        /* ===============================
+           USER MESSAGE INPUT BOX
+        ================================ */
+        #userMessage {
+            width: 80%;
+            padding: 10px;
+            border: 1px solid #555;
+            border-radius: 5px;
+            margin-right: 10px;
+        }
+
+        /* ===============================
+           SEND BUTTON
+        ================================ */
+        button {
+            padding: 10px 15px;
+            border: none;
+            border-radius: 5px;
+            background: #ffcc00;
+            color: #000;
+            font-weight: bold;
+            cursor: pointer;
+        }
+
+        /* Message styles */
+        .message {
+            margin-bottom: 10px;
+        }
+        .user {
+            color: #00ffcc;   /* Cyan for user */
+        }
+        .bot {
+            color: #ff66cc;   /* Pink for bot */
+        }
+        .error {
+            color: #ff4444;   /* Red for errors */
+        }
+    </style>
+</head>
+
+<body>
+    <h1>LLM Router Chat</h1>
+
+    <!-- ===========================================
+         CHAT OUTPUT BOX
+         Messages get appended here dynamically
+    ============================================ -->
+    <div id="chatBox"></div>
+
+    <!-- ===========================================
+         INPUT + SEND BUTTON
+    ============================================ -->
+    <input type="text" id="userMessage" placeholder="Type your message here..." autocomplete="off" />
+    <button onclick="sendMessage()">Send</button>
+
+    <script>
+        const chatBox = document.getElementById("chatBox");
+        const input = document.getElementById("userMessage");
+
+        /* ======================================================
+           Allow sending message using ENTER key
+        ====================================================== */
+        input.addEventListener("keypress", function(e) {
+            if (e.key === "Enter") sendMessage();
+        });
+
+        /* ======================================================
+           MAIN MESSAGE SENDING FUNCTION
+           1. Show user message
+           2. Send to backend /chat API
+           3. Display tool + response
+        ====================================================== */
+        async function sendMessage() {
+            const message = input.value.trim();
+            if (!message) return;  // Ignore empty messages
+
+            appendMessage("You", message, "user");
+            input.value = "";  // Clear input box
+
+            try {
+                /* ===============================
+                   SEND MESSAGE TO FASTAPI BACKEND
+                ================================ */
+                const response = await fetch("/chat", {
+                    method: "POST",
+                    headers: {
+                        "Content-Type": "application/json"
+                    },
+                    body: JSON.stringify({ message })
+                });
+
+                // Handle server-side errors
+                if (!response.ok) {
+                    throw new Error(`Server error: ${response.status}`);
+                }
+
+                // Parse JSON response
+                const data = await response.json();
+
+                /* =======================================
+                   Show which TOOL was used + final reply
+                ======================================== */
+                appendMessage(
+                    "LLM Router",
+                    `
+                        <b>Tool Used:</b> ${data.tool}<br>
+                        <b>Response:</b> ${data.response}
+                    `,
+                    "bot"
+                );
+
+            } catch (err) {
+                // Show readable error
+                appendMessage("Error", err.message, "error");
+            }
+        }
+
+        /* ======================================================
+           APPEND MESSAGE TO CHAT WINDOW
+           Creates a new <div> for each message
+        ====================================================== */
+        function appendMessage(sender, text, cls) {
+            const msgDiv = document.createElement("div");
+            msgDiv.classList.add("message", cls);
+            msgDiv.innerHTML = `<strong>${sender}:</strong> ${text}`;
+            chatBox.appendChild(msgDiv);
+
+            // Always scroll to the latest message
+            chatBox.scrollTop = chatBox.scrollHeight;
+        }
+    </script>
+</body>
+</html>
