@@ -51,7 +51,7 @@ llm-router-chat/
 │
 ├─ frontend/               # Frontend files
 │   ├─ index.html          # Main chat UI
-└─ venv/                   # Python virtual environment (optional, created locally)
+
 
 
 ## Architecture
