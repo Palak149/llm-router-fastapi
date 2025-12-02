@@ -38,6 +38,8 @@ The chatbot intelligently selects the most relevant tool to respond to user inpu
    - Displays tool used and bot response
    - Supports ENTER key and send button
 
+Folder Structure
+
 ```bash
 
 llm-router-chat/
@@ -126,7 +128,7 @@ History & Analytics
 
 
 ## Installation
-```bash
+
 1. Clone the repo:
 git clone https://github.com/yourusername/llm-router-chat.git
 cd llm-router-chat
