@@ -1,63 +1,174 @@
-# llm-router-fastapi
-LLM Router FastAPI
+# Intelligent LLM Router Chat System
 
-A lightweight FastAPI backend powered by a custom LLM Router, Qwen-0.5B, and multiple AI tools such as Suicide Prevention, Positive Dialogue, Anxiety Response, and Random Marks Generator.
+## Overview
 
-This project includes:
+This project is a **context-aware chatbot** built using a combination of:
 
- LLM Routing System
- FastAPI Backend
- Frontend Chat UI
- Tool-based Decision Router
- Conversation Memory
- Safe Handling of Sensitive Inputs
- Clean UI with dark theme
+- **Qwen 0.5B LLM** for text generation
+- **Sentence Transformers** for semantic embeddings
+- **LangChain** for conversation memory
+- **FastAPI** for backend APIs
+- **HTML/CSS/JS frontend** for chat interface
 
+The chatbot intelligently selects the most relevant tool to respond to user input based on **context and intent**, without relying solely on keyword matching.
 
- Project Structure
+---
 
- llm_router_fastapi/
+## Features
+
+1. **Intelligent Routing**
+   - Routes user messages to different tools based on context and semantic similarity.
+   - Tools include:
+     - `SuicideHelp` – crisis support
+     - `PositivePrompt` – motivational/comfort responses
+     - `NegativePrompt` – anxiety/worry responses
+     - `StudentMarks` – random marks generator
+
+2. **Conversation Memory**
+   - Uses **LangChain** to store the last few messages to understand context.
+   - Keeps a **global in-memory history** for session tracking.
+
+3. **APIs**
+   - `POST /chat` – send user messages, receive bot responses
+   - `GET /history` – fetch full chat history
+   - `GET /history/latest` – fetch last message only
+
+4. **Frontend**
+   - Simple dark-themed chat UI
+   - Displays tool used and bot response
+   - Supports ENTER key and send button
+
+---
+
+## Folder Structure
+project_root/
 │
-├── main.py               # FastAPI backend server
-├── router_logic.py       # LLM routing and tool logic
-├── frontend/
-│   ├── index.html        # Frontend chat interface
+├─ main.py # FastAPI app, serves frontend and APIs
+├─ router_logic.py # Chatbot logic, tools, intelligent routing
+├─ frontend/
+│ ├─ index.html # Chat UI
+├─ requirements.txt # Python dependencies
+└─ README.md
+
+
+---
+
+## Architecture
+
+┌─────────────┐
+│ User Input │
+└──────┬──────┘
 │
-├── README.md
-└── requirements.txt
+▼
+┌─────────────┐
+│ Frontend │
+│ (HTML/JS) │
+└──────┬──────┘
+│ POST /chat
+▼
+┌─────────────┐
+│ FastAPI │
+│ Backend │
+└──────┬──────┘
+│
+▼
+┌────────────────────────────┐
+│ Router Logic (router_logic.py) │
+│ ┌──────────────────────────┐ │
+│ │ Intelligent Router │ │
+│ │ (Semantic + Context) │ │
+│ └───────┬──────────────────┘ │
+│ ▼ │
+│ ┌──────────────────────────┐ │
+│ │ Tools │ │
+│ │ ┌──────────────────────┐ │ │
+│ │ │ SuicideHelp │ │ │
+│ │ │ PositivePrompt │ │ │
+│ │ │ NegativePrompt │ │ │
+│ │ │ StudentMarks │ │ │
+│ │ └──────────────────────┘ │ │
+│ └──────────────────────────┘ │
+│ ▲ │
+│ │ │
+│ ┌──────────────────────────┐ │
+│ │ LangChain Memory │ │
+│ │ Stores last 3-6 messages │ │
+│ └──────────────────────────┘ │
+└──────────────────────────────┘
+│
+▼
+┌─────────────┐
+│ Response │
+└──────┬──────┘
+│
+▼
+┌─────────────┐
+│ Frontend │
+│ ChatBox │
+└─────────────┘
 
- Features
- 1. Smart Router
 
-Routes user input to the correct tool:
 
-Trigger keywords	Tool	Purpose
-"suicide", “end my life”	- SuicideHelp,	Safe crisis support
-"stressed", “pressure”-	PositivePrompt,	Comfort-focused AI
-"worried", “fear”, “anxious”-	NegativePrompt,	Calm/anxiety support
-"marks", “result”, “score”-	StudentMarks,	Random student marks generator
 
- 2. Tools Used
- Suicide Help Tool
-Provides safe, responsible support messages.
+**Flow Description:**
 
- Positive Tool
-Uses Qwen model to generate comfort responses.
+1. User enters a message in the frontend.
+2. Frontend sends message via `POST /chat` to FastAPI backend.
+3. Backend calls `process_message()`:
+   - Retrieves recent conversation context from LangChain memory
+   - Computes semantic embeddings
+   - Routes message to the most relevant tool
+   - Executes tool function or LLM
+   - Stores user + AI response in memory
+4. Backend returns JSON with:
+   - `session_id`
+   - `tool` used
+   - `response` text
+5. Frontend displays the tool used and the bot response.
 
- Negative Tool
-LLM generates anxiety-relief responses.
+---
 
- Student Marks Tool
-Generates random marks for 5 subjects.
+## Installation
 
-3. Frontend UI
+1. Clone the repo:
+```bash
+git clone https://github.com/yourusername/llm-router-chat.git
+cd llm-router-chat
 
-Chat box
+2.Create virtual environment:
+python -m venv venv
+venv\Scripts\activate          # Windows
 
-Dark theme
+3.Install dependencies:
+pip install -r requirements.txt
 
-Displays Tool Used + LLM Response
+4.Run the app:
+uvicorn main:app --reload
 
-Enter key support
+5.Open browser:
+http://localhost:8000
 
-Error handling
+Usage
+
+Type a message in the input box and press ENTER or click Send.
+
+The bot will respond, showing the tool used and response.
+
+Access full chat history via:
+GET http://localhost:8000/history
+GET http://localhost:8000/history/latest
+
+Dependencies
+
+fastapi
+uvicorn
+transformers
+torch
+sentence-transformers
+langchain
+langchain-community-tools
+pydantic
+fastapi-staticfiles
+See requirements.txt for full versions.
+
+
