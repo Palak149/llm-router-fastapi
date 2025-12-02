@@ -1,6 +1,15 @@
 fastapi
 uvicorn
-transformers
+pydantic
+python-multipart
+
 torch
+transformers
 sentence-transformers
+
 langchain
+langchain-core
+langchain-community
+
+qwen
+accelerate
