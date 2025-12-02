@@ -38,100 +38,95 @@ The chatbot intelligently selects the most relevant tool to respond to user inpu
    - Displays tool used and bot response
    - Supports ENTER key and send button
 
----
 
-## Folder Structure
-project_root/
+llm-router-chat/
 │
-├─ main.py # FastAPI app, serves frontend and APIs
-├─ router_logic.py # Chatbot logic, tools, intelligent routing
-├─ frontend/
-│ ├─ index.html # Chat UI
-├─ requirements.txt # Python dependencies
-└─ README.md
+├─ main.py                 # FastAPI backend, serves frontend + APIs
+├─ router_logic.py         # Chatbot logic, tools, intelligent routing, memory
+├─ requirements.txt        # Python dependencies
+├─ README.md               # Project documentation
+│
+├─ frontend/               # Frontend files
+│   ├─ index.html          # Main chat UI
+└─ venv/                   # Python virtual environment (optional, created locally)
 
-
----
 
 ## Architecture
 
-┌─────────────┐
-│ User Input │
-└──────┬──────┘
-│
-▼
-┌─────────────┐
-│ Frontend │
-│ (HTML/JS) │
-└──────┬──────┘
-│ POST /chat
-▼
-┌─────────────┐
-│ FastAPI │
-│ Backend │
-└──────┬──────┘
-│
-▼
-┌────────────────────────────┐
-│ Router Logic (router_logic.py) │
-│ ┌──────────────────────────┐ │
-│ │ Intelligent Router │ │
-│ │ (Semantic + Context) │ │
-│ └───────┬──────────────────┘ │
-│ ▼ │
-│ ┌──────────────────────────┐ │
-│ │ Tools │ │
-│ │ ┌──────────────────────┐ │ │
-│ │ │ SuicideHelp │ │ │
-│ │ │ PositivePrompt │ │ │
-│ │ │ NegativePrompt │ │ │
-│ │ │ StudentMarks │ │ │
-│ │ └──────────────────────┘ │ │
-│ └──────────────────────────┘ │
-│ ▲ │
-│ │ │
-│ ┌──────────────────────────┐ │
-│ │ LangChain Memory │ │
-│ │ Stores last 3-6 messages │ │
-│ └──────────────────────────┘ │
-└──────────────────────────────┘
-│
-▼
-┌─────────────┐
-│ Response │
-└──────┬──────┘
-│
-▼
-┌─────────────┐
-│ Frontend │
-│ ChatBox │
-└─────────────┘
+Backend Architecture: Intelligent LLM Router Chat
+=================================================
 
++------------------+
+|   Frontend UI    |
+|  (index.html)    |
++--------+---------+
+         |
+         | POST /chat  (user message)
+         v
++----------------------------+
+|        main.py             |
+| - FastAPI app              |
+| - Defines endpoints:       |
+|    /chat                   |
+|    /history                |
+|    /history/latest         |
+| - Serves frontend files    |
++------------+---------------+
+             |
+             | Calls
+             v
++----------------------------+
+|      router_logic.py       |
+| - Intelligent router       |
+| - Tool definitions         |
+| - LLM call (Qwen 0.5B)    |
+| - Conversation memory      |
+| - Global session ID        |
+| - History storage          |
++------------+---------------+
+             |
+             v
++----------------------------+
+| Tools / Handlers           |
+| - SuicideHelp              |
+| - PositivePrompt           |
+| - NegativePrompt           |
+| - StudentMarks             |
++----------------------------+
 
+Data Flow / Routing Logic
+-------------------------
+1. User sends a message via POST /chat.
+2. main.py calls process_message(user_message) in router_logic.py.
+3. router_logic:
+   a. Fetches recent conversation context from memory.
+   b. Combines user message + context.
+   c. Uses embedding model (SentenceTransformer) to semantically compare
+      the combined text with each tool's description.
+   d. Selects the most relevant tool automatically (highest similarity).
+4. Executes selected tool:
+   - Some tools call LLM to generate response.
+   - Others are predefined (e.g., marks, suicide help).
+5. Stores user message + AI response in:
+   - LangChain conversation memory
+   - Global in-memory history (conversation_history)
+6. Returns JSON to frontend:
+   {
+       "session_id": "...",
+       "tool": "ToolName",
+       "response": "AI or tool response"
+   }
 
+History & Analytics
+-------------------
+- /history → Returns all past messages with tool used.
+- /history/latest → Returns only the last message.
+- Useful for Postman testing, debugging, or frontend display.
 
-**Flow Description:**
-
-1. User enters a message in the frontend.
-2. Frontend sends message via `POST /chat` to FastAPI backend.
-3. Backend calls `process_message()`:
-   - Retrieves recent conversation context from LangChain memory
-   - Computes semantic embeddings
-   - Routes message to the most relevant tool
-   - Executes tool function or LLM
-   - Stores user + AI response in memory
-4. Backend returns JSON with:
-   - `session_id`
-   - `tool` used
-   - `response` text
-5. Frontend displays the tool used and the bot response.
-
----
 
 ## Installation
-
-1. Clone the repo:
 ```bash
+1. Clone the repo:
 git clone https://github.com/yourusername/llm-router-chat.git
 cd llm-router-chat
 
