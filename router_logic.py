@@ -1,35 +1,13 @@
-import torch, re, random, uuid, datetime
-from fastapi import FastAPI
-from fastapi.middleware.cors import CORSMiddleware
+import torch, re, random, uuid
 from transformers import AutoTokenizer, AutoModelForCausalLM
 from sentence_transformers import SentenceTransformer
 from langchain.memory import ConversationBufferMemory
-from langchain_core.messages import HumanMessage, AIMessage
 from langchain_community.tools import Tool
-
-
-# FASTAPI APP INITIALIZATION
-app = FastAPI()
-
-# Enable cross-origin requests (frontend → backend)
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=["*"],
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
 
 # GLOBAL SESSION ID (used to track each chat session)
 SESSION_ID = str(uuid.uuid4())
 
 # CONVERSATION HISTORY STORAGE
-# This will store every chat step as a dictionary:
-# {
-#     "session_id": "...",
-#     "user_message": "...",
-#     "bot_response": "...",
-#     "tool_used": "..."
-# }
 conversation_history = []
 
 
@@ -146,24 +124,15 @@ def route(user):
 
 # MAIN CHAT HANDLER API
 
-@app.post("/chat")
 def process_message(user: str):
-    """
-    Main chat endpoint: Receives a user message and returns
-    the tool used + AI response.
-    """
-
-    # 1. Route to correct tool
     tool_name = route(user)
-
-    # 2. Execute the tool function
     bot_response = tools[tool_name].func(user)
 
-    # 3. Store the conversation in LangChain memory
+    # Save conversation in memory
     memory.chat_memory.add_user_message(user)
     memory.chat_memory.add_ai_message(bot_response)
 
-    # 4. Save history for Postman
+    # Save to global history
     conversation_history.append({
         "session_id": SESSION_ID,
         "user_message": user,
@@ -171,21 +140,8 @@ def process_message(user: str):
         "tool_used": tool_name
     })
 
-    # 5. Return clean JSON
     return {
         "session_id": SESSION_ID,
         "tool": tool_name,
         "response": bot_response
     }
-
-# API TO FETCH FULL CHAT HISTORY
-@app.get("/history")
-def get_history():
-    """
-    Returns the entire conversation history:
-    - session id
-    - user message
-    - bot response
-    - tool used
-    """
-    return conversation_history
