@@ -1,4 +1,6 @@
 import torch, re, random, uuid, datetime
+from fastapi import FastAPI
+from fastapi.middleware.cors import CORSMiddleware
 from transformers import AutoTokenizer, AutoModelForCausalLM
 from sentence_transformers import SentenceTransformer
 from langchain.memory import ConversationBufferMemory
@@ -6,37 +8,68 @@ from langchain_core.messages import HumanMessage, AIMessage
 from langchain_community.tools import Tool
 
 # ======================================================
+# FASTAPI APP INITIALIZATION
+# ======================================================
+app = FastAPI()
+
+# Enable cross-origin requests (frontend → backend)
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
+
+# ======================================================
 # GLOBAL SESSION ID (used to track each chat session)
 # ======================================================
 SESSION_ID = str(uuid.uuid4())
 
 # ======================================================
+# CONVERSATION HISTORY STORAGE
+# This will store every chat step as a dictionary:
+# {
+#     "session_id": "...",
+#     "timestamp": "...",
+#     "user_message": "...",
+#     "bot_response": "...",
+#     "tool_used": "..."
+# }
+# ======================================================
+conversation_history = []
+
+
+# ======================================================
 # LOAD MODELS 
 # ======================================================
 
-# Small embedding model for similarity routing
+# 1️⃣ Small embedding model for semantic similarity routing
 embedder = SentenceTransformer("all-MiniLM-L6-v2")
 
-# Qwen tiny instruct model (0.5B) for generating replies
+# 2️⃣ Qwen tiny instruct model (0.5B) for generating replies
 tokenizer = AutoTokenizer.from_pretrained("Qwen/Qwen2.5-0.5B-Instruct")
 model = AutoModelForCausalLM.from_pretrained(
     "Qwen/Qwen2.5-0.5B-Instruct",
-    torch_dtype=torch.float16,   # saves memory
-    device_map="cpu"             # runs on CPU
+    torch_dtype=torch.float16,     # saves memory
+    device_map="cpu"               # runs on CPU
 )
 
-# LangChain memory to store previous messages
+# 3️⃣ LangChain memory to store the AI conversation for internal use
 memory = ConversationBufferMemory(return_messages=True)
+
 
 # ======================================================
 # CLEAN RESPONSE (removes special tokens)
 # ======================================================
 def clean(text):
+    """Remove unwanted formatting & tokens from output."""
     if not text:
         return ""
     text = text.replace("|", " ")
     text = re.sub(r"(User|Assistant):", "", text)
     return re.sub(r"\s+", " ", text).strip()
+
 
 # ======================================================
 # BASE LLM MODEL CALL
@@ -57,16 +90,17 @@ def llm(query):
 
     return clean(tokenizer.decode(out[0], skip_special_tokens=True))
 
+
 # ======================================================
 # TOOL FUNCTIONS
 # Each tool provides a specialized response
 # ======================================================
 
-# Tool 1: Crisis support message
+# Tool 1: Suicide/Crisis support message
 def suicide_tool(_):
     return ("I'm really sorry you're feeling this way. "
             "You deserve support. Please talk to someone you trust "
-            "or call emergency services immediately.")
+            "or contact emergency services or a local helpline immediately.")
 
 # Tool 2: Random student marks generator
 def marks_tool(_):
@@ -74,39 +108,41 @@ def marks_tool(_):
     marks = {s: random.randint(40, 100) for s in subs}
     total = sum(marks.values())
     pct = round(total / len(subs), 2)
+
     reply = "\n".join([f"{s}: {m}/100" for s, m in marks.items()])
     return f"{reply}\nTotal: {total}/500\nPercentage: {pct}%"
 
+
 # ======================================================
 # TOOLS DICTIONARY
-# This MUST be outside functions 
-# Maps tool name → actual tool
+# Maps tool name → actual tool function
 # ======================================================
 tools = {
     "SuicideHelp": Tool(
         name="SuicideHelp",
         func=suicide_tool,
-        description="Crisis support"
+        description="Handles crisis or suicidal intent messages"
     ),
     "PositivePrompt": Tool(
         name="PositivePrompt",
         func=lambda x: llm(x),
-        description="Comfort response for stressed users"
+        description="Comfort & motivational response"
     ),
     "NegativePrompt": Tool(
         name="NegativePrompt",
         func=lambda x: llm(x),
-        description="Anxiety/worry related response"
+        description="Anxiety/worry-related response"
     ),
     "StudentMarks": Tool(
         name="StudentMarks",
         func=marks_tool,
-        description="Random marks generator"
+        description="Random student marks generator"
     ),
 }
 
+
 # ======================================================
-# ROUTER
+# ROUTER FUNCTION
 # Detects user's intent → selects correct tool
 # ======================================================
 def route(user):
@@ -128,27 +164,58 @@ def route(user):
     if "mark" in text or "score" in text or "result" in text:
         return "StudentMarks"
 
-    # Default response
+    # Default tool if no match
     return "PositivePrompt"
 
-# ======================================================
-# MAIN CHAT HANDLER
-# This runs when frontend calls /chat
-# ======================================================
-def process_message(user):
 
-    # 1. Find the correct tool using the router
+# ======================================================
+# MAIN CHAT HANDLER API
+# ======================================================
+@app.post("/chat")
+def process_message(user: str):
+    """
+    Main chat endpoint: Receives a user message and returns
+    the tool used + AI response.
+    """
+
+    # 1. Route to correct tool
     tool_name = route(user)
 
-    # 2. Execute the tool
-    tool_output = tools[tool_name].func(user)
+    # 2. Execute the tool function
+    bot_response = tools[tool_name].func(user)
 
-    # 3. Store conversation in memory
+    # 3. Store the conversation in LangChain memory
     memory.chat_memory.add_user_message(user)
-    memory.chat_memory.add_ai_message(tool_output)
+    memory.chat_memory.add_ai_message(bot_response)
 
-    # 4. Return clean JSON to frontend
+    # 4. Save history for Postman
+    conversation_history.append({
+        "session_id": SESSION_ID,
+        "timestamp": datetime.datetime.now().isoformat(),
+        "user_message": user,
+        "bot_response": bot_response,
+        "tool_used": tool_name
+    })
+
+    # 5. Return clean JSON
     return {
+        "session_id": SESSION_ID,
         "tool": tool_name,
-        "response": tool_output
+        "response": bot_response
     }
+
+
+# ======================================================
+# API TO FETCH FULL CHAT HISTORY
+# ======================================================
+@app.get("/history")
+def get_history():
+    """
+    Returns the entire conversation history:
+    - session id
+    - timestamp
+    - user message
+    - bot response
+    - tool used
+    """
+    return conversation_history
