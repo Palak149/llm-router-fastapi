@@ -38,6 +38,7 @@ The chatbot intelligently selects the most relevant tool to respond to user inpu
    - Displays tool used and bot response
    - Supports ENTER key and send button
 
+```bash
 
 llm-router-chat/
 │
