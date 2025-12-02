@@ -7,9 +7,8 @@ from langchain.memory import ConversationBufferMemory
 from langchain_core.messages import HumanMessage, AIMessage
 from langchain_community.tools import Tool
 
-# ======================================================
+
 # FASTAPI APP INITIALIZATION
-# ======================================================
 app = FastAPI()
 
 # Enable cross-origin requests (frontend → backend)
@@ -20,34 +19,26 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-
-# ======================================================
 # GLOBAL SESSION ID (used to track each chat session)
-# ======================================================
 SESSION_ID = str(uuid.uuid4())
 
-# ======================================================
 # CONVERSATION HISTORY STORAGE
 # This will store every chat step as a dictionary:
 # {
 #     "session_id": "...",
-#     "timestamp": "...",
 #     "user_message": "...",
 #     "bot_response": "...",
 #     "tool_used": "..."
 # }
-# ======================================================
 conversation_history = []
 
 
-# ======================================================
 # LOAD MODELS 
-# ======================================================
 
-# 1️⃣ Small embedding model for semantic similarity routing
+#  Small embedding model for semantic similarity routing
 embedder = SentenceTransformer("all-MiniLM-L6-v2")
 
-# 2️⃣ Qwen tiny instruct model (0.5B) for generating replies
+#  Qwen tiny instruct model (0.5B) for generating replies
 tokenizer = AutoTokenizer.from_pretrained("Qwen/Qwen2.5-0.5B-Instruct")
 model = AutoModelForCausalLM.from_pretrained(
     "Qwen/Qwen2.5-0.5B-Instruct",
@@ -55,13 +46,10 @@ model = AutoModelForCausalLM.from_pretrained(
     device_map="cpu"               # runs on CPU
 )
 
-# 3️⃣ LangChain memory to store the AI conversation for internal use
+#  LangChain memory to store the AI conversation for internal use
 memory = ConversationBufferMemory(return_messages=True)
 
-
-# ======================================================
 # CLEAN RESPONSE (removes special tokens)
-# ======================================================
 def clean(text):
     """Remove unwanted formatting & tokens from output."""
     if not text:
@@ -70,11 +58,8 @@ def clean(text):
     text = re.sub(r"(User|Assistant):", "", text)
     return re.sub(r"\s+", " ", text).strip()
 
-
-# ======================================================
 # BASE LLM MODEL CALL
 # Generates text using Qwen based on the query
-# ======================================================
 def llm(query):
     prompt = f"User: {query}\nAssistant:"
     inputs = tokenizer(prompt, return_tensors="pt")
@@ -90,11 +75,8 @@ def llm(query):
 
     return clean(tokenizer.decode(out[0], skip_special_tokens=True))
 
-
-# ======================================================
 # TOOL FUNCTIONS
 # Each tool provides a specialized response
-# ======================================================
 
 # Tool 1: Suicide/Crisis support message
 def suicide_tool(_):
@@ -112,11 +94,8 @@ def marks_tool(_):
     reply = "\n".join([f"{s}: {m}/100" for s, m in marks.items()])
     return f"{reply}\nTotal: {total}/500\nPercentage: {pct}%"
 
-
-# ======================================================
 # TOOLS DICTIONARY
 # Maps tool name → actual tool function
-# ======================================================
 tools = {
     "SuicideHelp": Tool(
         name="SuicideHelp",
@@ -140,11 +119,9 @@ tools = {
     ),
 }
 
-
-# ======================================================
 # ROUTER FUNCTION
 # Detects user's intent → selects correct tool
-# ======================================================
+
 def route(user):
     text = user.lower()
 
@@ -167,10 +144,8 @@ def route(user):
     # Default tool if no match
     return "PositivePrompt"
 
-
-# ======================================================
 # MAIN CHAT HANDLER API
-# ======================================================
+
 @app.post("/chat")
 def process_message(user: str):
     """
@@ -191,7 +166,6 @@ def process_message(user: str):
     # 4. Save history for Postman
     conversation_history.append({
         "session_id": SESSION_ID,
-        "timestamp": datetime.datetime.now().isoformat(),
         "user_message": user,
         "bot_response": bot_response,
         "tool_used": tool_name
@@ -204,16 +178,12 @@ def process_message(user: str):
         "response": bot_response
     }
 
-
-# ======================================================
 # API TO FETCH FULL CHAT HISTORY
-# ======================================================
 @app.get("/history")
 def get_history():
     """
     Returns the entire conversation history:
     - session id
-    - timestamp
     - user message
     - bot response
     - tool used
